@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_application5/auth_service.dart';
 import 'package:flutter_application5/crude_service.dart';
+import 'package:flutter_application5/login_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -42,6 +44,12 @@ class _HomePageState extends State<HomePage> {
         title: const Text('Firebase Ponce'),
         centerTitle: true,
         backgroundColor: Colors.blueGrey.shade50,
+        actions: [
+          IconButton(onPressed: (){
+            AuthService().signOut();
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => LoginPage()));
+          }, icon: const Icon(Icons.logout, color: Colors.black54,))
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         child: Icon(Icons.add, color: Colors.blueGrey.shade200),
