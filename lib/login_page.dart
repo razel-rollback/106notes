@@ -53,7 +53,9 @@ class _LoginPageState extends State<LoginPage> {
                     loading ? const CircularProgressIndicator() : const Text('Login with Email'),
                 onPressed: () async {
                   if (emailController.text.isEmpty ||
-                      passwordController.text.isEmpty) return;
+                      passwordController.text.isEmpty) {
+                    return;
+                  }
                   setState(() {
                     loading = true;
                   });

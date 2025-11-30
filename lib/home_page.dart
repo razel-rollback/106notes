@@ -1,114 +1,77 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_application5/auth_service.dart';
 import 'package:flutter_application5/crude_service.dart';
 import 'package:flutter_application5/login_page.dart';
+import 'package:flutter_application5/favorites_page.dart';
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+import 'auth_service.dart';
 
-  @override
-  State<HomePage> createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
+class HomePage extends StatelessWidget {
   final CrudService service = CrudService();
   final TextEditingController nameController = TextEditingController();
   final TextEditingController quantityController = TextEditingController();
-
-  int currentIndex = 0;
-  bool _isDisposed = false;
-
-  @override
-  void dispose() {
-    _isDisposed = true;
-    nameController.dispose();
-    quantityController.dispose();
-    super.dispose();
-  }
-
-  // Safe state check method
-  void _safeSetState(VoidCallback fn) {
-    if (!_isDisposed && mounted) {
-      setState(fn);
-    }
-  }
+  HomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final bool showFavoritesOnly = currentIndex == 1;
-
     return Scaffold(
       backgroundColor: Colors.grey[200],
       appBar: AppBar(
-        title: const Text('Firebase Ponce'),
+        title: const Text('Firestore Ponce'),
         centerTitle: true,
         backgroundColor: Colors.blueGrey.shade50,
         actions: [
-          IconButton(onPressed: (){
-            AuthService().signOut();
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => LoginPage()));
-          }, icon: const Icon(Icons.logout, color: Colors.black54,))
+          IconButton(
+            tooltip: 'Show favorites',
+            icon: const Icon(Icons.favorite, color: Colors.redAccent),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => FavoritesPage()),
+            ),
+          ),
+          IconButton(
+            onPressed: () {
+              AuthService().signOut();
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => LoginPage()),
+              );
+            },
+            icon: const Icon(Icons.logout, color: Colors.black54),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
         child: Icon(Icons.add, color: Colors.blueGrey.shade200),
         onPressed: () => openAddDialog(context),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: currentIndex,
-        onTap: (index) {
-          _safeSetState(() {
-            currentIndex = index;
-          });
-        },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.star), 
-            label: 'Favorites'
-          ),
-        ],
-      ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: service.getItems(favoriteOnly: showFavoritesOnly),
+        stream: service.getItems(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
+          final docs = snapshot.data!.docs;
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Text('Error: ${snapshot.error}'),
-            );
-          }
-
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return Center(
+          if (docs.isEmpty) {
+            return const Center(
               child: Text(
-                showFavoritesOnly
-                    ? 'No favorite items yet.'
-                    : 'No items found. Add some items!',
-                style: const TextStyle(fontSize: 18),
+                'No items found. Add some items!',
+                style: TextStyle(fontSize: 18),
               ),
             );
           }
-
-          final docs = snapshot.data!.docs;
 
           return ListView.builder(
             padding: const EdgeInsets.symmetric(vertical: 10),
             itemCount: docs.length,
             itemBuilder: (context, index) {
-              final item = docs[index];
-              final data = item.data() as Map<String, dynamic>? ?? {};
-              
-              final String name = data['name']?.toString() ?? 'Unknown';
-              final int quantity = (data['quantity'] as num?)?.toInt() ?? 0;
-              final bool fav = data['favorite'] as bool? ?? false;
+              var item = docs[index];
+
+              final data = item.data() as Map<String, dynamic>;
+              final imageUrl = data['imageUrl'];
 
               return Card(
                 elevation: 3,
@@ -121,46 +84,73 @@ class _HomePageState extends State<HomePage> {
                     horizontal: 16,
                     vertical: 8,
                   ),
+
+                  leading: imageUrl != null && imageUrl.isNotEmpty
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(30),
+                          child: Image.network(
+                            imageUrl,
+                            width: 50,
+                            height: 50,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : ClipRRect(
+                          borderRadius: BorderRadius.circular(30),
+                          child: Container(
+                            width: 50,
+                            height: 50,
+                            color: Colors.grey[300],
+                            child: const Icon(
+                              Icons.image_not_supported,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+
                   title: Text(
-                    name,
-                    overflow: TextOverflow.ellipsis,
+                    item['name'] ?? '',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
                   ),
                   subtitle: Text(
-                    'Quantity: $quantity',
+                    'Quantity: ${item['quantity'] ?? 0}',
                     style: TextStyle(color: Colors.grey[600]),
                   ),
-                  trailing: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 120),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            fav ? Icons.star : Icons.star_border,
-                            color: fav ? Colors.amber : Colors.grey,
-                          ),
-                          onPressed: () => service.updateFavorite(item.id, !fav),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          item['favorite'] == true
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                          color: item['favorite'] == true
+                              ? Colors.red
+                              : Colors.grey,
                         ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.edit,
-                            color: Color.fromARGB(255, 241, 207, 106),
-                          ),
-                          onPressed: () => openEditDialog(context, item),
+                        onPressed: () => service.updateFavorite(
+                          item.id,
+                          !(item['favorite'] == true),
                         ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.delete,
-                            color: Color.fromARGB(255, 242, 86, 75),
-                          ),
-                          onPressed: () => confirmDelete(context, item.id),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.edit,
+                          color: Color.fromARGB(255, 241, 207, 106),
                         ),
-                      ],
-                    ),
+                        onPressed: () => openEditDialog(context, item),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete,
+                          color: Color.fromARGB(255, 242, 86, 75),
+                        ),
+                        onPressed: () => confirmDelete(context, item.id),
+                      ),
+                    ],
                   ),
                 ),
               );
@@ -174,61 +164,95 @@ class _HomePageState extends State<HomePage> {
   void openAddDialog(BuildContext context) {
     nameController.clear();
     quantityController.clear();
+    File? selectedImagefile;
+    String? selectedImageUrl;
 
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Add New Item'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Item Name',
-                border: OutlineInputBorder(),
+      builder: (_) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Add New Item'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Item Name',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(10)),
+                  ),
+                ),
               ),
+
+              const SizedBox(height: 10),
+              TextField(
+                controller: quantityController,
+                decoration: const InputDecoration(
+                  labelText: 'Quantity',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(10)),
+                  ),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 10),
+              if (selectedImagefile != null)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.file(
+                    selectedImagefile!,
+                    width: 100,
+                    height: 100,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              const SizedBox(height: 10),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.photo_library),
+                label: const Text('Select Image'),
+                onPressed: () async {
+                  final pickedFile = await service.pickImageforAddItem();
+                  if (pickedFile != null) {
+                    setState(() {
+                      selectedImagefile = pickedFile.file;
+                      selectedImageUrl = pickedFile.url;
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: quantityController,
-              decoration: const InputDecoration(
-                labelText: 'Quantity',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
+            ElevatedButton(
+              child: const Text('Save'),
+
+              onPressed: () async{
+                if (nameController.text.isNotEmpty &&
+                    quantityController.text.isNotEmpty) {
+                await service.addItemWithImage(
+                    nameController.text,
+                    int.parse(quantityController.text),
+                    selectedImageUrl ?? '',
+                  );
+                }
+                Navigator.pop(context);
+              },
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (nameController.text.isNotEmpty && 
-                  quantityController.text.isNotEmpty) {
-                service.addItem(
-                  nameController.text,
-                  int.tryParse(quantityController.text) ?? 0,
-                );
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
       ),
     );
   }
 
-  void openEditDialog(BuildContext context, QueryDocumentSnapshot item) {
-    final data = item.data() as Map<String, dynamic>? ?? {};
-    
-    nameController.text = data['name']?.toString() ?? '';
-    quantityController.text = data['quantity']?.toString() ?? '';
-
+  void openEditDialog(
+    BuildContext context,
+    QueryDocumentSnapshot<Object?> item,
+  ) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -240,15 +264,20 @@ class _HomePageState extends State<HomePage> {
               controller: nameController,
               decoration: const InputDecoration(
                 labelText: 'Item Name',
-                border: OutlineInputBorder(),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(10)),
+                ),
               ),
             ),
+
             const SizedBox(height: 10),
             TextField(
               controller: quantityController,
               decoration: const InputDecoration(
                 labelText: 'Quantity',
-                border: OutlineInputBorder(),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.all(Radius.circular(10)),
+                ),
               ),
               keyboardType: TextInputType.number,
             ),
@@ -260,18 +289,24 @@ class _HomePageState extends State<HomePage> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text('Update'),
             onPressed: () {
-              if (nameController.text.isNotEmpty && 
+              if (nameController.text.isNotEmpty &&
                   quantityController.text.isNotEmpty) {
                 service.updateItem(
                   item.id,
                   nameController.text,
-                  int.tryParse(quantityController.text) ?? 0,
+                  int.parse(quantityController.text),
                 );
                 Navigator.pop(context);
               }
             },
-            child: const Text('Update'),
           ),
         ],
       ),
@@ -289,13 +324,9 @@ class _HomePageState extends State<HomePage> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () {
-              service.deleteItem(id);
-              Navigator.pop(context);
-            },
-            child: const Text('Delete'),
+          TextButton(
+            onPressed: () => {service.deleteItem(id), Navigator.pop(context)},
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

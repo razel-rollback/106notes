@@ -1,14 +1,56 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloudinary_public/cloudinary_public.dart';
+import 'package:image_picker/image_picker.dart';
+
+class PickedImage{
+  final File file;
+  final String url;
+
+  PickedImage({required this.file, required this.url});
+
+}
+
+
+
 
 class CrudService {
   final CollectionReference items =
       FirebaseFirestore.instance.collection('items');
 
-  Future<void> addItem(String name, int quantity) {
+
+
+  final CloudinaryPublic _cloudinary = CloudinaryPublic(
+  'dmgaavwzv', 'ds6c6crv',
+  cache: false,
+);
+
+ final ImagePicker _picker  = ImagePicker();
+
+
+Future<PickedImage?> pickImageforAddItem() async {
+  final pickedfile = await _picker.pickImage(source: ImageSource.gallery);
+
+  if(pickedfile == null) return null;
+
+  final file = File(pickedfile.path);
+
+  final response = await _cloudinary.uploadFile(
+    CloudinaryFile.fromFile(
+    file.path, 
+    resourceType: CloudinaryResourceType.Image,
+  ),);
+
+  return PickedImage(file: file, url: response.secureUrl);
+}
+
+  Future<void> addItemWithImage(String name, int quantity, String imageUrl) {
     return items.add({
       'name': name,
       'quantity': quantity,
       'favorite': false,
+      'imageUrl': imageUrl,
       'created_At': Timestamp.now(),
     });
   }
