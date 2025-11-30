@@ -69,11 +69,17 @@ Future<PickedImage?> pickImageforAddItem() async {
   return query.snapshots();
 }
 
-  Future<void> updateItem(String id, String name, int quantity) {
-    return items.doc(id).update({
+  Future<void> updateItem(String id, String name, int quantity, {String? imageUrl}) {
+    final Map<String, dynamic> updateData = {
       'name': name,
       'quantity': quantity,
-    });
+    };
+    
+    if (imageUrl != null) {
+      updateData['imageUrl'] = imageUrl;
+    }
+    
+    return items.doc(id).update(updateData);
   }
 
   Future<void> updateFavorite(String id, bool favorite) {

@@ -253,62 +253,98 @@ class HomePage extends StatelessWidget {
     BuildContext context,
     QueryDocumentSnapshot<Object?> item,
   ) {
+    nameController.text = item['name'] ?? '';
+    quantityController.text = item['quantity']?.toString() ?? '0';
+    final data = item.data() as Map<String, dynamic>;
+    String? selectedImageUrl = data['imageUrl'];
+
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Edit Item'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Item Name',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(10)),
+      builder: (_) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Edit Item'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Item Name',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(10)),
+                    ),
+                  ),
                 ),
-              ),
-            ),
 
-            const SizedBox(height: 10),
-            TextField(
-              controller: quantityController,
-              decoration: const InputDecoration(
-                labelText: 'Quantity',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.all(Radius.circular(10)),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: quantityController,
+                  decoration: const InputDecoration(
+                    labelText: 'Quantity',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(10)),
+                    ),
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 10),
+                if (selectedImageUrl != null && selectedImageUrl!.isNotEmpty)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      selectedImageUrl!,
+                      width: 100,
+                      height: 100,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                const SizedBox(height: 10),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.photo_library),
+                  label: Text(selectedImageUrl != null && selectedImageUrl!.isNotEmpty 
+                      ? 'Change Image' 
+                      : 'Add Image'),
+                  onPressed: () async {
+                    final pickedFile = await service.pickImageforAddItem();
+                    if (pickedFile != null) {
+                      setState(() {
+                        selectedImageUrl = pickedFile.url;
+                      });
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              keyboardType: TextInputType.number,
+              child: const Text('Update'),
+              onPressed: () async {
+                if (nameController.text.isNotEmpty &&
+                    quantityController.text.isNotEmpty) {
+                  await service.updateItem(
+                    item.id,
+                    nameController.text,
+                    int.parse(quantityController.text),
+                    imageUrl: selectedImageUrl,
+                  );
+                  Navigator.pop(context);
+                }
+              },
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            child: const Text('Update'),
-            onPressed: () {
-              if (nameController.text.isNotEmpty &&
-                  quantityController.text.isNotEmpty) {
-                service.updateItem(
-                  item.id,
-                  nameController.text,
-                  int.parse(quantityController.text),
-                );
-                Navigator.pop(context);
-              }
-            },
-          ),
-        ],
       ),
     );
   }
